@@ -1,0 +1,16 @@
+services:
+  lostfilm-reader:
+    build: .
+    container_name: lostfilm-reader
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/app/data/lostfilm.db
+      - CHECK_INTERVAL_SECONDS=3600
+    command: [ "uv", "run", "python", "-m", "lostfilm", "scheduler", "--db", "/app/data/lostfilm.db" ]
+
+volumes:
+  data:
