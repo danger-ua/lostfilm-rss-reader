@@ -15,8 +15,10 @@ lostfilm = "lostfilm.cli:main"
 
 [dependency-groups]
 dev = [
+    "aiogram>=3.26.0",
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    "python-telegram-bot>=22.6",
 ]
 
 [build-system]

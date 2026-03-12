@@ -21,6 +21,7 @@ from lostfilm.exceptions import (
 )
 from lostfilm.scheduler import Scheduler
 from lostfilm.storage import Storage
+from lostfilm.telegram import TelegramNotifier
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -185,11 +186,27 @@ def start_scheduler(
     try:
         client = LostFilmClient(uid=uid, usess=usess)
         storage = Storage(db_path=db_path)
-        scheduler = Scheduler(client, storage, interval_seconds=interval)
+
+        # Initialize Telegram Notifier
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        notifier = TelegramNotifier(bot_token=bot_token, chat_id=chat_id)
+
+        scheduler = Scheduler(
+            client, storage, interval_seconds=interval, notifier=notifier
+        )
 
         console.print("[bold blue]Starting scheduler...[/bold blue]")
         console.print(f"Database: [cyan]{db_path}[/cyan]")
         console.print(f"Interval: [cyan]{interval}s[/cyan]")
+        if notifier.is_enabled():
+            console.print(
+                "[bold magenta]Telegram Notifications:[/bold magenta] [green]Enabled[/green]"
+            )
+        else:
+            console.print(
+                "[bold magenta]Telegram Notifications:[/bold magenta] [yellow]Disabled[/yellow]"
+            )
 
         scheduler.start()
     except Exception as e:

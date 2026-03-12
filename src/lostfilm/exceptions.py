@@ -10,7 +10,9 @@ class LostFilmError(Exception):
 class AuthenticationError(LostFilmError):
     """Raised when authentication fails (HTTP 403)."""
 
-    def __init__(self, message: str = "Authentication failed. Session tokens may have expired."):
+    def __init__(
+        self, message: str = "Authentication failed. Session tokens may have expired."
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -18,7 +20,10 @@ class AuthenticationError(LostFilmError):
 class ServerError(LostFilmError):
     """Raised when the server returns an error (HTTP 503 or other server errors)."""
 
-    def __init__(self, message: str = "Server error. The service may be temporarily unavailable. Please try again later."):
+    def __init__(
+        self,
+        message: str = "Server error. The service may be temporarily unavailable. Please try again later.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -26,7 +31,10 @@ class ServerError(LostFilmError):
 class RateLimitError(LostFilmError):
     """Raised when requests are made too frequently."""
 
-    def __init__(self, message: str = "Rate limit exceeded. Please wait at least 15 minutes between requests."):
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded. Please wait at least 15 minutes between requests.",
+    ):
         self.message = message
         super().__init__(self.message)
 
@@ -34,6 +42,8 @@ class RateLimitError(LostFilmError):
 class ParseError(LostFilmError):
     """Raised when RSS feed parsing fails."""
 
-    def __init__(self, message: str = "Failed to parse RSS feed. The feed may be malformed."):
+    def __init__(
+        self, message: str = "Failed to parse RSS feed. The feed may be malformed."
+    ):
         self.message = message
         super().__init__(self.message)

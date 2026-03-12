@@ -5,6 +5,8 @@ import logging
 
 from lostfilm.client import LostFilmClient
 from lostfilm.storage import Storage
+from typing import Optional
+from lostfilm.telegram import TelegramNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -17,7 +19,11 @@ class Scheduler:
     """Periodically checks the RSS feed and stores new items."""
 
     def __init__(
-        self, client: LostFilmClient, storage: Storage, interval_seconds: int = 3600
+        self,
+        client: LostFilmClient,
+        storage: Storage,
+        interval_seconds: int = 3600,
+        notifier: Optional[TelegramNotifier] = None,
     ):
         """
         Initialize the scheduler.
@@ -26,10 +32,12 @@ class Scheduler:
             client: LostFilmClient instance.
             storage: Storage instance.
             interval_seconds: Check interval in seconds.
+            notifier: Optional TelegramNotifier instance.
         """
         self.client = client
         self.storage = storage
         self.interval_seconds = interval_seconds
+        self.notifier = notifier
         self.running = False
 
     def check_once(self):
@@ -37,10 +45,16 @@ class Scheduler:
         logger.info("Checking favorites RSS feed...")
         try:
             episodes = self.client.fetch_favorites_feed()
-            new_count = self.storage.store_episodes(episodes)
+            new_episodes = self.storage.store_episodes(episodes)
             logger.info(
-                f"Check complete. Found {len(episodes)} episodes, stored {new_count} new ones."
+                f"Check complete. Found {len(episodes)} episodes, stored {len(new_episodes)} new ones."
             )
+
+            # Send notifications
+            if self.notifier and new_episodes:
+                for episode in new_episodes:
+                    self.notifier.send_episode_notification(episode)
+
         except Exception as e:
             logger.error(f"Error during RSS check: {e}")
 

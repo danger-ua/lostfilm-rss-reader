@@ -70,18 +70,18 @@ class Storage:
             conn.commit()
             return True
 
-    def store_episodes(self, episodes: List[Episode]) -> int:
+    def store_episodes(self, episodes: List[Episode]) -> List[Episode]:
         """
         Store a list of episodes.
 
         Returns:
-            Number of newly added episodes.
+            List of newly added episodes.
         """
-        count = 0
+        new_episodes = []
         for ep in episodes:
             if self.store_episode(ep):
-                count += 1
-        return count
+                new_episodes.append(ep)
+        return new_episodes
 
     def get_episodes(self, limit: int = 50) -> List[Episode]:
         """
