@@ -1,5 +1,6 @@
 """SQLite storage for LostFilm RSS items."""
 
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -34,10 +35,15 @@ class Storage:
                     title TEXT NOT NULL,
                     link TEXT NOT NULL,
                     pub_date TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    qualities TEXT DEFAULT '{}'
                 )
                 """
             )
+            try:
+                conn.execute("ALTER TABLE episodes ADD COLUMN qualities TEXT DEFAULT '{}'")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             conn.commit()
 
     def store_episode(self, episode: Episode) -> bool:
@@ -56,8 +62,8 @@ class Storage:
 
             cursor.execute(
                 """
-                INSERT INTO episodes (id, title, link, pub_date, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO episodes (id, title, link, pub_date, created_at, qualities)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(episode.id),
@@ -65,6 +71,7 @@ class Storage:
                     episode.link,
                     episode.pub_date.isoformat(),
                     datetime.now().isoformat(),
+                    json.dumps(episode.qualities),
                 ),
             )
             conn.commit()
@@ -96,7 +103,7 @@ class Storage:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, title, link, pub_date FROM episodes ORDER BY pub_date DESC LIMIT ?",
+                "SELECT id, title, link, pub_date, qualities FROM episodes ORDER BY pub_date DESC LIMIT ?",
                 (limit,),
             )
             rows = cursor.fetchall()
@@ -109,6 +116,7 @@ class Storage:
                         title=row[1],
                         link=row[2],
                         pub_date=datetime.fromisoformat(row[3]),
+                        qualities=json.loads(row[4] or "{}"),
                     )
                 )
             return episodes
@@ -118,7 +126,7 @@ class Storage:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, title, link, pub_date FROM episodes WHERE id = ?",
+                "SELECT id, title, link, pub_date, qualities FROM episodes WHERE id = ?",
                 (str(item_id),),
             )
             row = cursor.fetchone()
@@ -128,5 +136,6 @@ class Storage:
                     title=row[1],
                     link=row[2],
                     pub_date=datetime.fromisoformat(row[3]),
+                    qualities=json.loads(row[4] or "{}"),
                 )
             return None

@@ -282,14 +282,14 @@ class TestDownloadTorrent:
 class TestGetEpisodeById:
     def test_found_in_favorites(self, mocker):
         client = make_client()
-        ep = Episode(id="123", title="Fav Show", link="url", pub_date=datetime.now())
+        ep = Episode(id="123", title="Fav Show", link="url", pub_date=datetime.now(), qualities={})
         mocker.patch.object(client, "fetch_favorites_feed", return_value=[ep])
         result = client.get_episode_by_id("123")
         assert result.title == "Fav Show"
 
     def test_found_in_global(self, mocker):
         client = make_client()
-        ep = Episode(id="456", title="Global Show", link="url", pub_date=datetime.now())
+        ep = Episode(id="456", title="Global Show", link="url", pub_date=datetime.now(), qualities={})
         mocker.patch.object(client, "fetch_favorites_feed", side_effect=LostFilmError())
         mocker.patch.object(client, "fetch_global_feed", return_value=[ep])
         result = client.get_episode_by_id("456")

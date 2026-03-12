@@ -25,6 +25,7 @@ class TestStorage(unittest.TestCase):
             title="Test Title",
             link="http://test.com",
             pub_date=datetime.now(),
+            qualities={"SD": "http://dl.test.com"}
         )
         is_new = self.storage.store_episode(ep)
         self.assertTrue(is_new)
@@ -39,8 +40,8 @@ class TestStorage(unittest.TestCase):
         self.assertEqual(stored_ep.id, "123")
 
     def test_get_episodes(self):
-        ep1 = Episode(id="1", title="Title 1", link="L1", pub_date=datetime(2023, 1, 1))
-        ep2 = Episode(id="2", title="Title 2", link="L2", pub_date=datetime(2023, 1, 2))
+        ep1 = Episode(id="1", title="Title 1", link="L1", pub_date=datetime(2023, 1, 1), qualities={})
+        ep2 = Episode(id="2", title="Title 2", link="L2", pub_date=datetime(2023, 1, 2), qualities={})
         self.storage.store_episodes([ep1, ep2])
 
         eps = self.storage.get_episodes()
@@ -53,7 +54,7 @@ class TestScheduler(unittest.TestCase):
         client = MagicMock()
         storage = MagicMock()
 
-        ep = Episode(id="1", title="T1", link="L1", pub_date=datetime.now())
+        ep = Episode(id="1", title="T1", link="L1", pub_date=datetime.now(), qualities={})
         client.fetch_favorites_feed.return_value = [ep]
         storage.store_episodes.return_value = 1
 

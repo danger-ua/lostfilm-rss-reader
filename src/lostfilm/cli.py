@@ -38,14 +38,15 @@ def print_episodes_table(episodes, limit: int = 10):
     table.add_column("ID", style="cyan", no_wrap=True)
     table.add_column("Title", style="green")
     table.add_column("Date", style="yellow")
-    table.add_column("Download URL", style="blue")
+    table.add_column("Qualities", style="blue")
 
     for episode in episodes[:limit]:
+        qualities_str = ", ".join(episode.qualities.keys()) if hasattr(episode, 'qualities') else ""
         table.add_row(
             str(episode.id),
             episode.title,
             episode.pub_date.strftime("%Y-%m-%d %H:%M"),
-            episode.download_url,
+            qualities_str,
         )
 
     console.print(table)
@@ -97,8 +98,13 @@ def get_download_url(item_id: str, uid: Optional[str], usess: Optional[str]):
     """Get download URL for a specific item ID."""
     try:
         client = LostFilmClient(uid=uid, usess=usess)
-        url = client.get_download_url(item_id)
-        print(url)
+        episode = client.get_episode_by_id(item_id)
+        if episode and hasattr(episode, 'qualities') and episode.qualities:
+            for q, dl_url in episode.qualities.items():
+                print(f"{q}: {dl_url}")
+        else:
+            url = client.get_download_url(item_id)
+            print(url)
     except LostFilmError as e:
         err_console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
@@ -151,15 +157,29 @@ def download(
         client = LostFilmClient(uid=uid, usess=usess)
 
         # Default filename based on title if possible
-        if not output_path:
-            episode = client.get_episode_by_id(item_id)
-            if episode:
-                filename = sanitize_filename(episode.title) + ".torrent"
-            else:
-                filename = f"{item_id}.torrent"
-            output_path = filename
+        episode = client.get_episode_by_id(item_id)
+        
+        download_url = None
+        if episode:
+            if not output_path:
+                output_path = sanitize_filename(episode.title) + ".torrent"
+            # Pick best available
+            for q in ["1080p", "720p", "SD", "MP4"]:
+                if q in episode.qualities:
+                    download_url = episode.qualities[q]
+                    break
+            if not download_url and episode.qualities:
+                download_url = list(episode.qualities.values())[0]
+        else:
+            if not output_path:
+                output_path = f"{item_id}.torrent"
+            download_url = client.get_download_url(item_id)
 
-        content = client.download_torrent(item_id)
+        if not download_url:
+            raise LostFilmError("No download URL found")
+
+        # Reuse client logic to download raw
+        content = client._make_request(download_url, "download_torrent")
 
         with open(output_path, "wb") as f:
             f.write(content)

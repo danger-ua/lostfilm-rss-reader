@@ -30,6 +30,7 @@ def _make_episode(
         title=title,
         link=link,
         pub_date=pub_date or datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        qualities={"720p": "https://n.tracktor.site/rssdownloader.php?id=11111"}
     )
 
 
@@ -146,7 +147,7 @@ class TestListFavoritesJson:
         data = json.loads(stdout[json_start:])
         assert "id" in data[0]
         assert "title" in data[0]
-        assert "download_url" in data[0]
+        assert "qualities" in data[0]
 
     def test_json_limit_is_respected(self):
         episodes = [_make_episode(ep_id=str(i)) for i in range(5)]
@@ -165,6 +166,7 @@ class TestGetDownloadUrl:
     def test_prints_url_with_id(self):
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
+            instance.get_episode_by_id.return_value = None
             instance.get_download_url.return_value = (
                 "https://n.tracktor.site/rssdownloader.php?id=99999"
             )
@@ -175,6 +177,7 @@ class TestGetDownloadUrl:
     def test_calls_client_with_item_id(self):
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
+            instance.get_episode_by_id.return_value = None
             instance.get_download_url.return_value = (
                 "https://n.tracktor.site/rssdownloader.php?id=42"
             )
@@ -230,6 +233,7 @@ class TestGetDownloadUrlErrors:
 
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
+            instance.get_episode_by_id.return_value = None
             instance.get_download_url.side_effect = LostFilmError("generic failure")
             _stdout, _stderr, code = run_cli("get-download-url", "123")
         assert code == 1
@@ -237,6 +241,7 @@ class TestGetDownloadUrlErrors:
     def test_unexpected_error_exits_1(self):
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
+            instance.get_episode_by_id.return_value = None
             instance.get_download_url.side_effect = RuntimeError("oops")
             _stdout, _stderr, code = run_cli("get-download-url", "123")
         assert code == 1
@@ -252,16 +257,16 @@ class TestDownloadCommand:
         output_file = tmp_path / "test.torrent"
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
-            instance.download_torrent.return_value = b"mock torrent file"
+            instance.get_episode_by_id.return_value = None
+            instance.get_download_url.return_value = "http://dl.example"
+            instance._make_request.return_value = b"mock torrent file"
 
-            # Use patch for the open-builtin inside the cli module's download function
-            # Or just let it write to the tmp_path since we control it
             stdout, _stderr, code = run_cli(
                 "download", "12345", "--output", str(output_file)
             )
 
         assert code == 0
-        assert instance.download_torrent.called
+        assert instance._make_request.called
         assert output_file.read_bytes() == b"mock torrent file"
         assert "Successfully downloaded" in stdout
 
@@ -275,7 +280,8 @@ class TestDownloadCommand:
             with patch("lostfilm.cli.LostFilmClient") as MockClient:
                 instance = MockClient.return_value
                 instance.get_episode_by_id.return_value = None
-                instance.download_torrent.return_value = b"data"
+                instance.get_download_url.return_value = "http://dl.example"
+                instance._make_request.return_value = b"data"
                 run_cli("download", "999")
 
             expected_file = tmp_path / "999.torrent"
@@ -289,7 +295,8 @@ class TestDownloadCommand:
 
         with patch("lostfilm.cli.LostFilmClient") as MockClient:
             instance = MockClient.return_value
-            instance.download_torrent.side_effect = LostFilmError("fail")
+            instance.get_episode_by_id.return_value = None
+            instance.get_download_url.side_effect = LostFilmError("fail")
             _stdout, _stderr, code = run_cli("download", "123")
         assert code == 1
 
@@ -303,14 +310,13 @@ class TestDownloadCommand:
                 instance = MockClient.return_value
                 mock_ep = MagicMock(spec=Episode)
                 mock_ep.title = "Cool Show [S01E01] (720p)"
+                mock_ep.qualities = {"720p": "http://dl.example"}
                 instance.get_episode_by_id.return_value = mock_ep
-                instance.download_torrent.return_value = b"torrent_data"
+                instance._make_request.return_value = b"torrent_data"
 
                 run_cli("download", "12345")
 
-            # Expected: "Cool_Show__S01E01___720p_.torrent" (simplified: sanitized)
-            # Actually our sanitizer: re.sub(r'[\\/*?:"<>|]', "_", filename).replace(" ", "_").replace("(", "").replace(")", "")
-            # "Cool Show [S01E01] (720p)" -> "Cool_Show_[S01E01]_720p"
+            # Expected: "Cool_Show_[S01E01]_720p.torrent"
             expected_filename = "Cool_Show_[S01E01]_720p.torrent"
             expected_file = tmp_path / expected_filename
             assert expected_file.exists()

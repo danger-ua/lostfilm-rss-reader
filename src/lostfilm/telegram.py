@@ -53,7 +53,7 @@ class TelegramNotifier:
     def _verify_bot(self) -> None:
         """Verify the bot token and log bot identity."""
         try:
-            url = f"https://api.telegram.org/bot{self.bot_token}/getMe"
+            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
             response = requests.get(url, timeout=5)
             response.raise_for_status()
             data = response.json()
@@ -86,7 +86,7 @@ class TelegramNotifier:
             logger.warning("Cannot fetch chat_id: bot_token is not set.")
             return None
 
-        url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
+        url = f"https://api.telegram.org/bot{self.bot_token}/getUpdate"
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
@@ -139,11 +139,21 @@ class TelegramNotifier:
         timestamp = int(episode.pub_date.timestamp())
         formatted_date = episode.pub_date.strftime("%Y-%m-%d %H:%M")
 
+        quality_links = []
+        # Sort qualities in a predictable order if possible, or just iterate
+        for q, url in sorted(episode.qualities.items()):
+            quality_links.append(
+                f'• <a href="{html.escape(url)}">Download {html.escape(q)}</a>'
+            )
+
+        links_block = "\n".join(quality_links)
+
         message = (
             f"🎬 <b>New Episode Available</b>\n\n"
             f"<b>{title}</b>\n"
-            f"Released: <tg-time unix=\"{timestamp}\" format=\"Dt\">at {formatted_date}</tg-time>\n\n"
-            f"<a href=\"{link}\">View on LostFilm</a>"
+            f'Released: <tg-time unix="{timestamp}" format="Dt">at {formatted_date}</tg-time>\n\n'
+            f"<b>Downloads:</b>\n{links_block}\n\n"
+            f'<a href="{link}">View on LostFilm</a>'
         )
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
@@ -170,7 +180,7 @@ class TelegramNotifier:
             body = ""
             if e.response is not None:
                 body = e.response.text
-            
+
             error_desc = ""
             try:
                 if body:
@@ -186,5 +196,7 @@ class TelegramNotifier:
                     self.chat_id,
                 )
             else:
-                logger.error("Failed to send Telegram notification: %s %s", e, error_desc)
+                logger.error(
+                    "Failed to send Telegram notification: %s %s", e, error_desc
+                )
             return False

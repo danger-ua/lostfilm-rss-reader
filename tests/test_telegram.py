@@ -15,6 +15,7 @@ def _make_episode(**kwargs) -> Episode:
         title="Test Show (S01E01)",
         link="https://www.lostfilm.tv/series/Test_Show/season_1/episode_1/",
         pub_date=datetime(2026, 3, 4, 17, 0, 0),
+        qualities={"1080p": "https://example.com/download"}
     )
     defaults.update(kwargs)
     return Episode(**defaults)
@@ -124,7 +125,7 @@ class TestTelegramNotifierEnabled(unittest.TestCase):
         mock_response.raise_for_status.return_value = None
         mock_post.return_value = mock_response
 
-        episode = _make_episode(link="https://example.com/download")
+        episode = _make_episode(qualities={"720p": "https://example.com/download"})
         self.notifier.send_episode_notification(episode)
 
         payload = mock_post.call_args[1]["data"]
@@ -307,6 +308,7 @@ class TestTelegramNotifierLive(unittest.TestCase):
             title="🧪 Test Notification — LostFilm RSS Reader",
             link="https://github.com",
             pub_date=datetime.now(),
+            qualities={"1080p": "https://example.com/1080p"}
         )
 
         result = notifier.send_episode_notification(episode)

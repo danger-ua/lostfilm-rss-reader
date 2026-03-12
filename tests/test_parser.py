@@ -107,20 +107,20 @@ class TestParseRss2Feed:
 
     def test_episode_title(self):
         episodes = parse_rss_feed(RSS2_SINGLE_ITEM)
-        assert episodes[0].title == "Breaking Bad [S05E16] [720p]"
+        assert episodes[0].title == "Breaking Bad [S05E16]"
 
-    def test_episode_id_extracted_from_guid_url(self):
+    def test_episode_id_extracted(self):
         episodes = parse_rss_feed(RSS2_SINGLE_ITEM)
-        assert episodes[0].id == "12345"
+        assert len(episodes[0].id) == 16
 
     def test_episode_pub_date_parsed(self):
         episodes = parse_rss_feed(RSS2_SINGLE_ITEM)
         assert episodes[0].pub_date.year == 2013
         assert episodes[0].pub_date.month == 9
 
-    def test_episode_download_url(self):
+    def test_episode_qualities_populated(self):
         episodes = parse_rss_feed(RSS2_SINGLE_ITEM)
-        assert "id=12345" in episodes[0].download_url
+        assert "id=12345" in episodes[0].qualities["720p"]
 
     def test_two_items_returns_two_episodes(self):
         episodes = parse_rss_feed(RSS2_TWO_ITEMS)
@@ -140,7 +140,7 @@ class TestParseRss2Feed:
         )
         episodes = parse_rss_feed(xml)
         assert len(episodes) == 1
-        assert episodes[0].id == "55555"
+        assert len(episodes[0].id) == 16
 
     def test_invalid_pub_date_falls_back_to_now(self):
         xml = make_rss2(
@@ -169,7 +169,7 @@ class TestParseRss2Feed:
         )
         episodes = parse_rss_feed(xml)
         assert len(episodes) == 1
-        assert episodes[0].id == "88888"
+        assert len(episodes[0].id) == 16
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +188,7 @@ class TestParseAtomFeed:
 
     def test_atom_id_extracted(self):
         episodes = parse_rss_feed(ATOM_SINGLE_ENTRY)
-        assert episodes[0].id == "99999"
+        assert len(episodes[0].id) == 16
 
     def test_atom_pub_date_parsed(self):
         episodes = parse_rss_feed(ATOM_SINGLE_ENTRY)

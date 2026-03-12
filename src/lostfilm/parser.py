@@ -1,5 +1,7 @@
 """RSS feed parsing logic."""
 
+import hashlib
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import List, Union
@@ -28,7 +30,7 @@ def parse_rss_feed(xml_content: Union[str, bytes]) -> List[Episode]:
     except ET.ParseError as e:
         raise ParseError(f"Failed to parse XML: {e}") from e
 
-    episodes = []
+    episodes_by_title = {}
     namespace = {"": "http://www.w3.org/2005/Atom"}
 
     # Try RSS 2.0 format first
@@ -97,22 +99,30 @@ def parse_rss_feed(xml_content: Union[str, bytes]) -> List[Episode]:
                 except (ValueError, TypeError):
                     pass
 
-            episode = Episode(
-                id=numeric_id,
-                title=title.strip(),
-                link=link.strip(),
-                pub_date=pub_date,
-            )
-            episodes.append(episode)
+            base_title, quality = _parse_title_and_quality(title.strip())
+            download_url = f"https://n.tracktor.site/rssdownloader.php?id={numeric_id}"
+
+            if base_title not in episodes_by_title:
+                group_id = hashlib.md5(base_title.encode('utf-8')).hexdigest()[:16]
+                episode = Episode(
+                    id=group_id,
+                    title=base_title,
+                    link=link.strip(),
+                    pub_date=pub_date,
+                    qualities={quality: download_url}
+                )
+                episodes_by_title[base_title] = episode
+            else:
+                episodes_by_title[base_title].qualities[quality] = download_url
 
         except Exception:
             # Skip malformed items but continue parsing
             continue
 
-    if not episodes:
+    if not episodes_by_title:
         raise ParseError("No valid episodes found in RSS feed")
 
-    return episodes
+    return list(episodes_by_title.values())
 
 
 def _extract_numeric_id(identifier: str) -> str:
@@ -141,3 +151,25 @@ def _extract_numeric_id(identifier: str) -> str:
             return match.group(1)
 
     return ""
+
+def _parse_title_and_quality(title: str) -> tuple[str, str]:
+    """Parse title and quality from 'Show [S01E01] [1080p]' format."""
+    match = re.search(r'(.*?)\s*\[([^\]]+)\]\s*$', title)
+    if match:
+        last_bracket = match.group(2)
+        if re.match(r'^S\d+E\d+$', last_bracket, re.IGNORECASE):
+            return title.strip(), "SD"
+        
+        base_title = match.group(1).strip()
+        quality = last_bracket
+        if quality.lower() == "1080p":
+            quality = "1080p"
+        elif quality.lower() == "720p":
+            quality = "720p"
+        elif quality.upper() == "MP4":
+            quality = "MP4"
+        elif quality.upper() == "SD":
+            quality = "SD"
+            
+        return base_title, quality
+    return title.strip(), "SD"
