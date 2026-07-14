@@ -27,13 +27,7 @@ cd lostfilm-rss-reader
 2. Install dependencies using `uv`:
 
 ```bash
-uv pip install -e .
-```
-
-Or using pip:
-
-```bash
-pip install -e .
+uv sync --locked
 ```
 
 ## Configuration
@@ -70,7 +64,7 @@ LOSTFILM_USESS=your_session_token_here
 Pass credentials directly via CLI flags (less secure):
 
 ```bash
-lostfilm --uid YOUR_UID --usess YOUR_USESS list-favorites
+uv run python -m lostfilm --uid YOUR_UID --usess YOUR_USESS list-favorites
 ```
 
 ## Usage
@@ -80,19 +74,19 @@ lostfilm --uid YOUR_UID --usess YOUR_USESS list-favorites
 Display the 10 latest episodes from your favorites list:
 
 ```bash
-lostfilm list-favorites
+uv run python -m lostfilm list-favorites
 ```
 
 Output in JSON format:
 
 ```bash
-lostfilm list-favorites --json
+uv run python -m lostfilm list-favorites --json
 ```
 
 Limit the number of results:
 
 ```bash
-lostfilm list-favorites --limit 5
+uv run python -m lostfilm list-favorites --limit 5
 ```
 
 ### Get Download URL
@@ -100,7 +94,7 @@ lostfilm list-favorites --limit 5
 Get the direct download URL for a specific episode:
 
 ```bash
-lostfilm get-download-url 12345
+uv run python -m lostfilm get-download-url 12345
 ```
 
 This will output:
