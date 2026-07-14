@@ -207,10 +207,39 @@ def start_scheduler(
         client = LostFilmClient(uid=uid, usess=usess)
         storage = Storage(db_path=db_path)
 
+        # Shared dict: short_uuid -> torrent_url, populated by TelegramNotifier,
+        # consumed by the DownloadBot callback handler.
+        pending_downloads: dict = {}
+
         # Initialize Telegram Notifier
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         chat_id = os.getenv("TELEGRAM_CHAT_ID")
-        notifier = TelegramNotifier(bot_token=bot_token, chat_id=chat_id)
+        notifier = TelegramNotifier(
+            bot_token=bot_token,
+            chat_id=chat_id,
+            pending_downloads=pending_downloads,
+        )
+
+        # Initialize Deluge integration (optional)
+        deluge_url = os.getenv("DELUGE_URL")
+        deluge_pass = os.getenv("DELUGE_PASS", "")
+        deluge_client = None
+        if deluge_url:
+            from lostfilm.deluge import DelugeClient
+            from lostfilm.bot import DownloadBot
+
+            deluge_client = DelugeClient(url=deluge_url, password=deluge_pass)
+
+            if notifier.is_enabled() and bot_token:
+                # LostFilm session cookies for authenticated torrent downloads
+                lf_cookies = {"uid": uid or "", "usess": usess or ""}
+                download_bot = DownloadBot(
+                    bot_token=bot_token,
+                    deluge_client=deluge_client,
+                    pending_downloads=pending_downloads,
+                    lf_cookies=lf_cookies,
+                )
+                download_bot.start()
 
         scheduler = Scheduler(
             client, storage, interval_seconds=interval, notifier=notifier
@@ -226,6 +255,15 @@ def start_scheduler(
         else:
             console.print(
                 "[bold magenta]Telegram Notifications:[/bold magenta] [yellow]Disabled[/yellow]"
+            )
+        if deluge_client:
+            console.print(
+                f"[bold magenta]Deluge Integration:[/bold magenta] "
+                f"[green]Enabled[/green] ([cyan]{deluge_url}[/cyan])"
+            )
+        else:
+            console.print(
+                "[bold magenta]Deluge Integration:[/bold magenta] [yellow]Disabled (DELUGE_URL not set)[/yellow]"
             )
 
         scheduler.start()

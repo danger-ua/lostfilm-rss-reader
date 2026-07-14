@@ -37,7 +37,7 @@ typecheck:
 	uv run pyright src/
 
 run:
-	uv run python -m lostfilm
+	uv run python -m lostfilm scheduler
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

@@ -8,6 +8,8 @@ dependencies = [
     "python-dateutil>=2.8.2",
     "rich>=13.7.0",
     "python-dotenv>=1.0.0",
+    "deluge-web-client>=2.0.3",
+    "python-telegram-bot>=22.6",
 ]
 
 [project.scripts]
@@ -18,7 +20,6 @@ dev = [
     "aiogram>=3.26.0",
     "pytest>=8.0",
     "pytest-mock>=3.12",
-    "python-telegram-bot>=22.6",
 ]
 
 [build-system]
