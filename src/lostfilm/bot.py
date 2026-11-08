@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import threading
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
@@ -36,7 +36,7 @@ class DownloadBot:
         self,
         bot_token: str,
         deluge_client: "DelugeClient",
-        pending_downloads: Dict[str, str],
+        pending_downloads: Dict[str, Any],
         lf_cookies: Optional[Dict[str, str]] = None,
     ) -> None:
         self.bot_token = bot_token
@@ -61,29 +61,67 @@ class DownloadBot:
         if not data.startswith(self.CALLBACK_PREFIX):
             return
 
-        uuid = data[len(self.CALLBACK_PREFIX):]
+        uuid = data[len(self.CALLBACK_PREFIX) :]
 
         # Acknowledge immediately so Telegram removes the loading spinner
         await query.answer("⏳ Adding to Deluge…")
 
-        torrent_url = self.pending.pop(uuid, None)
-        if not torrent_url:
+        raw_entry = self.pending.pop(uuid, None)
+        if not raw_entry:
             logger.warning("Callback for unknown/expired uuid=%s", uuid)
-            await query.answer(
-                "❌ Link expired or already used.", show_alert=True
-            )
+            await query.answer("❌ Link expired or already used.", show_alert=True)
             return
 
+        if isinstance(raw_entry, dict):
+            torrent_url = raw_entry.get("url", "")
+            title = raw_entry.get("title")
+        elif isinstance(raw_entry, tuple):
+            torrent_url = raw_entry[0]
+            title = raw_entry[1] if len(raw_entry) > 1 else None
+        else:
+            torrent_url = str(raw_entry)
+            title = None
+
+        if not title and query.message:
+            msg_text = query.message.caption or query.message.text or ""
+            lines = [line.strip() for line in msg_text.splitlines() if line.strip()]
+            for i, line in enumerate(lines):
+                if "new episode available" in line.lower() and i + 1 < len(lines):
+                    title = lines[i + 1]
+                    break
+
         logger.info(
-            "Received download callback uuid=%s url=%s", uuid, torrent_url
+            "Received download callback uuid=%s url=%s title=%s",
+            uuid,
+            torrent_url,
+            title,
         )
 
         # Run the blocking Deluge call off the event loop thread
-        ok = await asyncio.to_thread(
-            self.deluge.add_torrent_url, torrent_url, self.lf_cookies
-        )
+        try:
+            ok = await asyncio.to_thread(
+                self.deluge.add_torrent_url,
+                torrent_url,
+                self.lf_cookies,
+                title,
+            )
+        except TypeError:
+            ok = await asyncio.to_thread(
+                self.deluge.add_torrent_url,
+                torrent_url,
+                self.lf_cookies,
+            )
 
-        status_text = "✅ Added to Deluge!" if ok else "❌ Failed to add to Deluge."
+        if ok:
+            status_text = (
+                f"✅ Added to Deluge: {title}" if title else "✅ Added to Deluge!"
+            )
+        else:
+            status_text = (
+                f"❌ Failed to add to Deluge: {title}"
+                if title
+                else "❌ Failed to add to Deluge."
+            )
         await query.answer(status_text, show_alert=True)
 
         # Reply to the notification message with a status line

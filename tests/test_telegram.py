@@ -15,7 +15,7 @@ def _make_episode(**kwargs) -> Episode:
         title="Test Show (S01E01)",
         link="https://www.lostfilm.tv/series/Test_Show/season_1/episode_1/",
         pub_date=datetime(2026, 3, 4, 17, 0, 0),
-        qualities={"1080p": "https://example.com/download"}
+        qualities={"1080p": "https://example.com/download"},
     )
     defaults.update(kwargs)
     return Episode(**defaults)
@@ -310,7 +310,7 @@ class TestTelegramNotifierLive(unittest.TestCase):
             title="Медведь (The Bear). (S05E08) - Live Test Poster",
             link="https://github.com",
             pub_date=datetime.now(),
-            qualities={"1080p": "https://example.com/1080p"}
+            qualities={"1080p": "https://example.com/1080p"},
         )
 
         result = notifier.send_episode_notification(episode)
@@ -319,16 +319,21 @@ class TestTelegramNotifierLive(unittest.TestCase):
             "Live Telegram notification failed — check your BOT_TOKEN and CHAT_ID",
         )
 
+
 class TestTelegramPoster(unittest.TestCase):
     def test_normalize_name(self):
         from lostfilm.telegram import _normalize_name
+
         self.assertEqual(_normalize_name("The Bear"), "thebear")
         self.assertEqual(_normalize_name("Медведь"), "медведь")
         self.assertEqual(_normalize_name("Show (US)"), "showus")
 
     def test_extract_series_names(self):
         from lostfilm.telegram import _extract_series_names
-        ru, en = _extract_series_names("Я тебя отыщу (I Will Find You). Эпизод четвёртый (S01E04)")
+
+        ru, en = _extract_series_names(
+            "Я тебя отыщу (I Will Find You). Эпизод четвёртый (S01E04)"
+        )
         self.assertEqual(ru, "Я тебя отыщу")
         self.assertEqual(en, "I Will Find You")
 
@@ -368,11 +373,14 @@ class TestTelegramPoster(unittest.TestCase):
 
             notifier = TelegramNotifier(bot_token="fake", chat_id="123")
             poster_url, _ = notifier._find_show_info("Медведь (The Bear). (S05E08)")
-            self.assertEqual(poster_url, "https://www.lostfilm.tv/Static/Images/738/Posters/poster.jpg")
+            self.assertEqual(
+                poster_url,
+                "https://www.lostfilm.tv/Static/Images/738/Posters/poster.jpg",
+            )
             mock_head.assert_called_once_with(
                 "https://www.lostfilm.tv/Static/Images/738/Posters/poster.jpg",
                 headers=unittest.mock.ANY,
-                timeout=2
+                timeout=2,
             )
 
     @patch("lostfilm.telegram.requests.get")
@@ -403,12 +411,17 @@ class TestTelegramPoster(unittest.TestCase):
 
             notifier = TelegramNotifier(bot_token="fake", chat_id="123")
             poster_url, _ = notifier._find_show_info("Медведь (The Bear). (S05E08)")
-            self.assertEqual(poster_url, "https://www.lostfilm.tv/Static/Images/738/Posters/image.jpg")
+            self.assertEqual(
+                poster_url,
+                "https://www.lostfilm.tv/Static/Images/738/Posters/image.jpg",
+            )
 
     @patch("lostfilm.telegram.requests.post")
     def test_send_notification_with_photo(self, mock_post):
         notifier = TelegramNotifier(bot_token="fake", chat_id="123")
-        notifier._find_show_info = MagicMock(return_value=("https://example.com/poster.jpg", None))
+        notifier._find_show_info = MagicMock(
+            return_value=("https://example.com/poster.jpg", None)
+        )
 
         mock_post_res = MagicMock()
         mock_post_res.raise_for_status.return_value = None
@@ -427,10 +440,13 @@ class TestTelegramPoster(unittest.TestCase):
     @patch("lostfilm.telegram.requests.post")
     def test_send_notification_photo_fallback(self, mock_post):
         notifier = TelegramNotifier(bot_token="fake", chat_id="123")
-        notifier._find_poster_url = MagicMock(return_value="https://example.com/poster.jpg")
+        notifier._find_poster_url = MagicMock(
+            return_value="https://example.com/poster.jpg"
+        )
 
         # Mock sendPhoto failing, but sendMessage succeeding
         import requests as req
+
         def mock_post_side_effect(url, *args, **kwargs):
             if "sendPhoto" in url:
                 raise req.RequestException("failed to send photo")
@@ -452,6 +468,135 @@ class TestTelegramPoster(unittest.TestCase):
         second_call = mock_post.call_args_list[1]
         self.assertIn("sendMessage", second_call[0][0])
         self.assertIn("Медведь (The Bear)", second_call[1]["data"]["text"])
+
+
+class TestTelegramInlineKeyboard(unittest.TestCase):
+    def test_build_inline_keyboard_stores_title(self):
+        pending = {}
+        notifier = TelegramNotifier(
+            bot_token="fake", chat_id="123", pending_downloads=pending
+        )
+        episode = _make_episode(
+            title="Медведь (The Bear). (S05E08)",
+            qualities={
+                "1080p": "https://example.com/1080p",
+                "720p": "https://example.com/720p",
+            },
+        )
+        markup = notifier._build_inline_keyboard(episode)
+        self.assertIsNotNone(markup)
+        self.assertEqual(len(pending), 2)
+        for short_id, item in pending.items():
+            self.assertIn("url", item)
+            self.assertEqual(item["title"], "Медведь (The Bear). (S05E08)")
+            self.assertIn(item["quality"], ("1080p", "720p"))
+
+
+class TestDownloadBotCallback(unittest.IsolatedAsyncioTestCase):
+    async def test_handle_callback_success_with_title(self):
+        from unittest.mock import AsyncMock
+        from lostfilm.bot import DownloadBot
+
+        deluge_mock = MagicMock()
+        deluge_mock.add_torrent_url.return_value = True
+
+        pending = {
+            "test1234": {
+                "url": "https://example.com/download.torrent",
+                "title": "Медведь (The Bear). (S05E08)",
+                "quality": "1080p",
+            }
+        }
+        bot = DownloadBot(
+            bot_token="fake_token",
+            deluge_client=deluge_mock,
+            pending_downloads=pending,
+        )
+
+        update = MagicMock()
+        query = MagicMock()
+        query.data = "dl:test1234"
+        query.answer = AsyncMock()
+        query.message = MagicMock()
+        query.message.reply_text = AsyncMock()
+        update.callback_query = query
+
+        context = MagicMock()
+
+        await bot._handle_callback(update, context)
+
+        expected_msg = "✅ Added to Deluge: Медведь (The Bear). (S05E08)"
+        query.answer.assert_any_call(expected_msg, show_alert=True)
+        query.message.reply_text.assert_awaited_once_with(expected_msg)
+        deluge_mock.add_torrent_url.assert_called_once_with(
+            "https://example.com/download.torrent",
+            {},
+            "Медведь (The Bear). (S05E08)",
+        )
+
+    async def test_handle_callback_failure_with_title(self):
+        from unittest.mock import AsyncMock
+        from lostfilm.bot import DownloadBot
+
+        deluge_mock = MagicMock()
+        deluge_mock.add_torrent_url.return_value = False
+
+        pending = {
+            "test1234": {
+                "url": "https://example.com/download.torrent",
+                "title": "Медведь (The Bear). (S05E08)",
+                "quality": "1080p",
+            }
+        }
+        bot = DownloadBot(
+            bot_token="fake_token",
+            deluge_client=deluge_mock,
+            pending_downloads=pending,
+        )
+
+        update = MagicMock()
+        query = MagicMock()
+        query.data = "dl:test1234"
+        query.answer = AsyncMock()
+        query.message = MagicMock()
+        query.message.reply_text = AsyncMock()
+        update.callback_query = query
+
+        context = MagicMock()
+
+        await bot._handle_callback(update, context)
+
+        expected_msg = "❌ Failed to add to Deluge: Медведь (The Bear). (S05E08)"
+        query.answer.assert_any_call(expected_msg, show_alert=True)
+        query.message.reply_text.assert_awaited_once_with(expected_msg)
+
+    async def test_handle_callback_string_fallback(self):
+        from unittest.mock import AsyncMock
+        from lostfilm.bot import DownloadBot
+
+        deluge_mock = MagicMock()
+        deluge_mock.add_torrent_url.return_value = True
+
+        pending = {"test1234": "https://example.com/download.torrent"}
+        bot = DownloadBot(
+            bot_token="fake_token",
+            deluge_client=deluge_mock,
+            pending_downloads=pending,
+        )
+
+        update = MagicMock()
+        query = MagicMock()
+        query.data = "dl:test1234"
+        query.answer = AsyncMock()
+        query.message = None
+        update.callback_query = query
+
+        context = MagicMock()
+
+        await bot._handle_callback(update, context)
+
+        expected_msg = "✅ Added to Deluge!"
+        query.answer.assert_any_call(expected_msg, show_alert=True)
 
 
 if __name__ == "__main__":

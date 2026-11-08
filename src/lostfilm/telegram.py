@@ -41,7 +41,7 @@ class TelegramNotifier:
         self,
         bot_token: Optional[str],
         chat_id: Optional[str],
-        pending_downloads: Optional[Dict[str, str]] = None,
+        pending_downloads: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize the Telegram notifier.
@@ -55,7 +55,7 @@ class TelegramNotifier:
             bot_token: The Telegram bot token.
             chat_id: The chat ID to send notifications to.  Pass ``None`` to
                      let the notifier discover it automatically.
-            pending_downloads: Shared dict mapping short UUIDs to torrent URLs.
+            pending_downloads: Shared dict mapping short UUIDs to download info.
                                When provided, episode notifications will include
                                inline "Send to Deluge" buttons.
         """
@@ -65,7 +65,9 @@ class TelegramNotifier:
         self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID") or None
 
         # Shared dict populated here, consumed by the bot callback handler.
-        self.pending_downloads: Dict[str, str] = pending_downloads if pending_downloads is not None else {}
+        self.pending_downloads: Dict[str, Any] = (
+            pending_downloads if pending_downloads is not None else {}
+        )
 
         if self.bot_token and not self.chat_id:
             logger.info(
@@ -227,7 +229,7 @@ class TelegramNotifier:
         """
         Build a Telegram InlineKeyboardMarkup for Deluge download buttons.
 
-        Each button registers a short UUID → torrent_url entry in
+        Each button registers a short UUID → download info entry in
         ``self.pending_downloads`` so the callback data stays under Telegram's
         64-byte limit.
 
@@ -241,7 +243,11 @@ class TelegramNotifier:
         for quality, torrent_url in sorted(episode.qualities.items()):
             # Register a short key so callback_data stays ≤ 64 bytes
             short_id = uuid.uuid4().hex[:8]
-            self.pending_downloads[short_id] = torrent_url
+            self.pending_downloads[short_id] = {
+                "url": torrent_url,
+                "title": episode.title,
+                "quality": quality,
+            }
             callback_data = f"dl:{short_id}"  # 11 bytes
             buttons.append(
                 [{"text": f"⬇ {quality} → Deluge", "callback_data": callback_data}]
@@ -301,6 +307,7 @@ class TelegramNotifier:
             chat_id = int(self.chat_id)
 
         import json as _json
+
         reply_markup_json = _json.dumps(reply_markup) if reply_markup else None
 
         # If a poster URL is found, try to send it via sendPhoto
@@ -317,7 +324,9 @@ class TelegramNotifier:
             try:
                 response = requests.post(photo_url, data=photo_data, timeout=10)
                 response.raise_for_status()
-                logger.debug(f"Successfully sent photo notification for {episode.title}")
+                logger.debug(
+                    f"Successfully sent photo notification for {episode.title}"
+                )
                 return True
             except requests.RequestException as photo_err:
                 logger.warning(

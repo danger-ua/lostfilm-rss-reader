@@ -37,6 +37,7 @@ class DelugeClient:
         self,
         torrent_url: str,
         lf_cookies: Optional[dict] = None,
+        title: Optional[str] = None,
     ) -> bool:
         """
         Download a .torrent file from *torrent_url* and add it to Deluge.
@@ -46,6 +47,7 @@ class DelugeClient:
             lf_cookies: Optional dict of LostFilm session cookies
                         (``{"uid": ..., "usess": ...}``) used to authenticate
                         the download request.
+            title: Optional episode or release title for logging.
 
         Returns:
             ``True`` if the torrent was added successfully, ``False`` otherwise.
@@ -82,9 +84,7 @@ class DelugeClient:
             import os as _os
             from deluge_web_client import DelugeWebClient, TorrentOptions  # type: ignore[import-untyped]
 
-            torrent_options = TorrentOptions(
-                label="serials"
-            )
+            torrent_options = TorrentOptions(label="serials")
 
             # upload_torrent() requires a file path, not raw bytes —
             # write to a temp file then clean up.
@@ -104,16 +104,22 @@ class DelugeClient:
                 _os.unlink(tmp_path)
 
             if result and result.result:
-                logger.info(
-                    "Torrent successfully added to Deluge: %s", torrent_url
-                )
+                if title:
+                    logger.info(
+                        "Torrent successfully added to Deluge: %s (%s)",
+                        title,
+                        torrent_url,
+                    )
+                else:
+                    logger.info("Torrent successfully added to Deluge: %s", torrent_url)
                 return True
             else:
-                logger.warning(
-                    "Deluge responded but result was falsy: %s", result
-                )
+                logger.warning("Deluge responded but result was falsy: %s", result)
                 return False
 
         except Exception as e:
-            logger.error("Failed to add torrent to Deluge: %s", e)
+            if title:
+                logger.error("Failed to add torrent '%s' to Deluge: %s", title, e)
+            else:
+                logger.error("Failed to add torrent to Deluge: %s", e)
             return False
