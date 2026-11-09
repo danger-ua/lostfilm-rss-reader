@@ -44,7 +44,7 @@ clean:
 	rm -rf .pytest_cache
 
 docker-build:
-	docker build -t lostfilm-rss-reader:latest .
+	docker build -t lostfilm-rss-reader:retry .
 
 docker-run:
 	docker run --rm --env-file .env lostfilm-rss-reader:latest
