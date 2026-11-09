@@ -41,7 +41,9 @@ def print_episodes_table(episodes, limit: int = 10):
     table.add_column("Qualities", style="blue")
 
     for episode in episodes[:limit]:
-        qualities_str = ", ".join(episode.qualities.keys()) if hasattr(episode, 'qualities') else ""
+        qualities_str = (
+            ", ".join(episode.qualities.keys()) if hasattr(episode, "qualities") else ""
+        )
         table.add_row(
             str(episode.id),
             episode.title,
@@ -99,7 +101,7 @@ def get_download_url(item_id: str, uid: Optional[str], usess: Optional[str]):
     try:
         client = LostFilmClient(uid=uid, usess=usess)
         episode = client.get_episode_by_id(item_id)
-        if episode and hasattr(episode, 'qualities') and episode.qualities:
+        if episode and hasattr(episode, "qualities") and episode.qualities:
             for q, dl_url in episode.qualities.items():
                 print(f"{q}: {dl_url}")
         else:
@@ -158,7 +160,7 @@ def download(
 
         # Default filename based on title if possible
         episode = client.get_episode_by_id(item_id)
-        
+
         download_url = None
         if episode:
             if not output_path:
@@ -228,7 +230,12 @@ def start_scheduler(
             from lostfilm.deluge import DelugeClient
             from lostfilm.bot import DownloadBot
 
-            deluge_client = DelugeClient(url=deluge_url, password=deluge_pass)
+            deluge_client = DelugeClient(
+                url=deluge_url,
+                password=deluge_pass,
+                notifier=notifier,
+            )
+            deluge_client.start_status_checker()
 
             if notifier.is_enabled() and bot_token:
                 # LostFilm session cookies for authenticated torrent downloads
@@ -266,7 +273,11 @@ def start_scheduler(
                 "[bold magenta]Deluge Integration:[/bold magenta] [yellow]Disabled (DELUGE_URL not set)[/yellow]"
             )
 
-        scheduler.start()
+        try:
+            scheduler.start()
+        finally:
+            if deluge_client:
+                deluge_client.stop_status_checker()
     except Exception as e:
         err_console.print(f"[red]Error starting scheduler:[/red] {e}")
         sys.exit(1)

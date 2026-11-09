@@ -377,3 +377,67 @@ class TelegramNotifier:
                     "Failed to send Telegram notification: %s %s", e, error_desc
                 )
             return False
+
+    def send_message(self, text: str) -> bool:
+        """
+        Send a plain text or HTML message to the configured Telegram chat.
+
+        Args:
+            text: The message text to send (HTML parse mode supported).
+
+        Returns:
+            True if sent successfully (or if notifier is disabled), False otherwise.
+        """
+        if not self.is_enabled():
+            return True
+
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        chat_id: int | str = self.chat_id  # type: ignore[assignment]
+        if str(self.chat_id).lstrip("-").isdigit():
+            chat_id = int(self.chat_id)
+
+        data: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "link_preview_options": '{"is_disabled": true}',
+        }
+
+        try:
+            response = requests.post(url, data=data, timeout=10)
+            response.raise_for_status()
+            logger.debug("Successfully sent Telegram message.")
+            return True
+        except requests.RequestException as e:
+            logger.error("Failed to send Telegram message: %s", e)
+            return False
+
+    def send_torrent_status_update(
+        self, title: str, status: str, details: Optional[str] = None
+    ) -> bool:
+        """
+        Send a status update for a torrent (added, downloaded, fail) to Telegram.
+
+        Args:
+            title: The title or identifier of the torrent.
+            status: Status string ('added', 'downloaded', or 'fail').
+            details: Optional extra details or error message.
+
+        Returns:
+            True if sent successfully, False otherwise.
+        """
+        if not self.is_enabled():
+            return True
+
+        safe_title = html.escape(title)
+        if status == "added":
+            msg = f"📥 <b>Torrent added to Deluge:</b>\n{safe_title}"
+        elif status == "downloaded":
+            msg = f"🎉 <b>Torrent downloaded:</b>\n{safe_title}"
+        elif status == "fail":
+            reason = f"\n<i>{html.escape(details)}</i>" if details else ""
+            msg = f"❌ <b>Torrent fail:</b>\n{safe_title}{reason}"
+        else:
+            msg = f"ℹ️ <b>Torrent status ({html.escape(status)}):</b>\n{safe_title}"
+
+        return self.send_message(msg)
